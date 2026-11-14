@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bootstrap-ai-project:hook:claim-ledger sha256=701bf169f609ae3acad54ed7ab30cfbf6369daa11b9be48723e3047b747009d9
+# bootstrap-ai-project:hook:claim-ledger sha256=03ecc07c5426baff6c4ae7ea9839671860cb824de770e0c8ed2ef77a6f960a80
 """PostToolUse hook：把執行過的命令分類記帳，供 claim-guard.py 比對。
 
 像行車紀錄器——只記錄，永遠不干預，任何情況都 exit 0。
@@ -34,7 +34,7 @@ CATEGORY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"\b(pytest|unittest|nose2|npm\s+(run\s+)?test|yarn\s+test|pnpm\s+test|"
             r"vitest|jest|mocha|dotnet\s+test|go\s+test|cargo\s+test|rspec|"
-            r"phpunit|gradle\s+test|mvn\s+test|ctest)\b",
+            r"phpunit|gradle\s+test|mvn\s+test|ctest|vpr?\s+test)\b",
             re.IGNORECASE,
         ),
     ),

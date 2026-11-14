@@ -15,7 +15,7 @@
             "type": "command"
           }
         ],
-        "matcher": "Bash|Grep|Glob"
+        "matcher": "Bash|PowerShell|Grep|Glob"
       }
     ],
     "SessionEnd": [
