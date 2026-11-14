@@ -1,0 +1,76 @@
+{
+  "description": "與 Claude 共用 .ai/bootstrap-ai-project runtime 的專案治理 hooks。",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/claim-ledger.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/claim-ledger.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "記錄驗證證據…",
+            "timeout": 15,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash|Grep|Glob"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "清理驗證狀態…",
+            "timeout": 3,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "建立驗證基準…",
+            "timeout": 60,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/update-reminder.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/update-reminder.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "檢查受管檔是否落後…",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/claim-guard.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/claim-guard.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "檢查宣稱是否有證據…",
+            "timeout": 15,
+            "type": "command"
+          },
+          {
+            "command": "python3 -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "commandWindows": "python -I -c \"import pathlib,runpy,sys;s='.ai/bootstrap-ai-project/hooks/verify-gate.py';c=pathlib.Path.cwd();r=(c,*c.parents);r=r[:next((i+1 for i,d in enumerate(r) if (d/'.git').exists()),len(r))];p=next((d/s for d in r if (d/s).is_file()),None);p or sys.exit('bootstrap-ai-project hook not found: '+s);runpy.run_path(str(p),run_name='__main__')\"",
+            "statusMessage": "收工前跑驗證…",
+            "timeout": 420,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

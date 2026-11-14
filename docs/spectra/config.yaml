@@ -18,3 +18,14 @@ schema: spec-driven
 #       - Always include a "Non-goals" section
 #     tasks:
 #       - Break tasks into chunks of max 2 hours
+
+context: |
+  T3 Code：TypeScript／Effect 的 pnpm workspace，經 Vite+（vp）執行；server 為 event-sourced。
+  測試品質基準：測試放在原始碼旁的 *.test.ts(x)，以 Vitest 執行；不用 sleep、輪詢或逾時參數，
+  改為 drain effect worker 或 await 特定 event／Deferred。詳見 docs/internals/testing.md。
+
+rules:
+  tasks:
+    - 每個實作任務指名要新增或修改的具體測試檔與案例名稱
+    - 新測試必須能被正式命令收錄並實際執行（vp test run <files>，推送前 vp run check:changed）
+    - 說明外部相依（provider 子行程、網路、檔案系統、時間）以何種 fake、mock 或 TestClock 隔離

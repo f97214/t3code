@@ -200,6 +200,11 @@ export default defineConfig({
       "apps/mobile/modules/t3-highlights/cpp/generated/**",
       "apps/mobile/modules/t3-highlights/nitrogen/generated/**",
       "*.icon/**",
+      // bootstrap-ai-project embeds a content hash; formatting reads as a hand edit.
+      ".claude/agents/**",
+      ".claude/rules/**",
+      ".codex/agents/**",
+      ".agents/skills/{implementer,test-engineer,doc-writer,git-commit,explorer,reviewer}/**",
     ],
     sortPackageJson: {},
     overrides: [

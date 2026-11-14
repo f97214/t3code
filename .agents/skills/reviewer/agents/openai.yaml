@@ -1,0 +1,8 @@
+# bootstrap-ai-project:role:reviewer:skill:v1 sha256=d626f12068c1f5d22374592db95c99c2866c37790295421808d1e2b1d7c90556
+interface:
+  display_name: "獨立審查者"
+  short_description: "獨立審查已完成的變更，檢查正確性、回歸、安全與測試，回報附證據的 findings，不修改程式碼。"
+  default_prompt: "使用 $reviewer 執行已明確指定的角色工作流。"
+
+policy:
+  allow_implicit_invocation: false

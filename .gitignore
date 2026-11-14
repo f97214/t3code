@@ -53,3 +53,15 @@ node_modules/
 /packages/ssh/.ssh-launcher-test-*/
 .spectra/
 docs/spectra/.vector-search.db*
+# >>> Managed by init-project-docs >>>
+!/.claude/
+!/.claude/**
+!/.agents/
+!/.agents/**
+!/.codex/
+!/.codex/**
+!/.ai/
+!/.ai/**
+# <<< Managed by init-project-docs <<<
+# Personal Claude settings (fork guard) stay local.
+/.claude/settings.local.json

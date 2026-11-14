@@ -1,0 +1,8 @@
+# bootstrap-ai-project:role:explorer:skill:v1 sha256=fcbc4839b9ca9d5a1441f8ff69ae65c67bee85c27e0dc059c5e518b04a713b7b
+interface:
+  display_name: "唯讀探索者"
+  short_description: "在主代理指定的範圍內唯讀調查程式碼、呼叫關係與既有模式，回報可回溯證據，不修改任何檔案。"
+  default_prompt: "使用 $explorer 執行已明確指定的角色工作流。"
+
+policy:
+  allow_implicit_invocation: false

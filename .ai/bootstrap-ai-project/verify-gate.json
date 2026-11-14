@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "max_blocks": 3,
+  "total_timeout": 360,
+  "skip_when_clean": true,
+  "checks": [
+    {
+      "name": "check:changed",
+      "command": ["node", "scripts/check-changed.ts", "--timeout", "300"],
+      "timeout": 360
+    }
+  ]
+}

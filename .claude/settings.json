@@ -1,0 +1,103 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "PYTHONIOENCODING": "UTF-8",
+    "PYTHONUTF8": "1"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/claim-ledger.py"],
+            "command": "python",
+            "timeout": 15,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash|Grep|Glob"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/verify-gate.py"],
+            "command": "python",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/verify-gate.py"],
+            "command": "python",
+            "timeout": 60,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/update-reminder.py"],
+            "command": "python",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/claim-guard.py"],
+            "command": "python",
+            "timeout": 15,
+            "type": "command"
+          },
+          {
+            "args": ["${CLAUDE_PROJECT_DIR}/.ai/bootstrap-ai-project/hooks/verify-gate.py"],
+            "command": "python",
+            "timeout": 420,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  },
+  "includeGitInstructions": false,
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(sudo *)",
+      "Bash(git push *)",
+      "Bash(git reset --hard *)",
+      "Bash(git branch -d *)",
+      "Bash(git branch -D *)",
+      "Bash(git checkout -b *)",
+      "Bash(git switch -c *)",
+      "Bash(git worktree add *)",
+      "Bash(git worktree remove *)",
+      "PowerShell(rm -rf *)",
+      "PowerShell(rm -fr *)",
+      "PowerShell(sudo *)",
+      "PowerShell(git push *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(git branch -d *)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git checkout -b *)",
+      "PowerShell(git switch -c *)",
+      "PowerShell(git worktree add *)",
+      "PowerShell(git worktree remove *)",
+      "PowerShell(Remove-Item * -Recurse *)",
+      "PowerShell(Start-Process * -Verb RunAs *)"
+    ]
+  }
+}
