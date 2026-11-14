@@ -41,6 +41,7 @@ Internal notes preserve architectural decisions, constraints, and implementation
 source alone does not explain. Most code changes do not need an internal documentation update. Follow the
 [documentation rules](../AGENTS.md#documentation) before adding one.
 
+- 繁中導覽（fork）：[架構](./ARCHITECTURE.md) · [功能](./FEATURES.md) · [開發](./DEVELOPMENT.md) · [測試](./TESTING.md)
 - [Architecture overview](./internals/overview.md)
 - [Glossary](./internals/glossary.md)
 - [Connection runtime](./internals/connection-runtime.md)
