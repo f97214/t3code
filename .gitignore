@@ -51,3 +51,5 @@ node_modules/
 .pnpm-store/
 
 /packages/ssh/.ssh-launcher-test-*/
+.spectra/
+docs/spectra/.vector-search.db*
