@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "T3 dev",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "vp run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "T3 dev:desktop",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "vp run dev:desktop",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
