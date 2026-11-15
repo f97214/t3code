@@ -1,12 +1,19 @@
 import { parseSync } from "vite-plus";
 import { describe, expect, it } from "vite-plus/test";
 
-import { collectMessages, isOverlaySourceFile, transformSource } from "./transform.ts";
+import {
+  collectMessages,
+  isOverlaySourceFile,
+  parseModuleScopeList,
+  transformSource,
+} from "./transform.ts";
 
 const IMPORT_T = 'import { __t, __ts, __tx } from "@t3tools/client-runtime/i18n-overlay";';
 const IMPORT_FRAGMENT = 'import { Fragment as __I18nFragment } from "react";';
 
 const run = (code: string, filename = "Sample.tsx") => transformSource(code, filename, parseSync);
+const runListed = (code: string, filename = "a.ts") =>
+  transformSource(code, filename, parseSync, { moduleScopeFiles: [filename] });
 const keys = (code: string, filename = "Sample.tsx") =>
   collectMessages(code, filename, parseSync).map((message) => message.key);
 
@@ -209,7 +216,7 @@ describe("Visible attributes are rewritten", () => {
   it("does not rewrite other attributes or strings without letters", () => {
     expect(run('const a = <i data-testid="close-button" className="flex" />;')).toBeNull();
     expect(run('const a = <i title="123" />;')).toBeNull();
-    expect(run("const a = <i title={cond ? 'A' : 'B'} />;")).toBeNull();
+    expect(run("const a = <i title={cond ? a : b} />;")).toBeNull();
   });
 
   it("rewrites nested content inside template values and keeps the line count", () => {
@@ -264,7 +271,7 @@ describe("Notification and confirmation call arguments are rewritten", () => {
   });
 
   it("leaves non-literal values and unrelated callees alone", () => {
-    expect(run('toastManager.add({ title: cond ? "A" : "B" });', "a.ts")).toBeNull();
+    expect(run("toastManager.add({ title: cond ? a : b });", "a.ts")).toBeNull();
     expect(run('other.add({ title: "Hello" });', "a.ts")).toBeNull();
     expect(run('Dialog.alert(message, "Try again.", "Third");', "a.ts")?.code).toContain(
       '__t("Try again."), "Third"',
@@ -378,15 +385,21 @@ describe("Menu item labels are rewritten", () => {
     expect(keys('class A { m() { return { label: "Open" }; } }', "a.ts")).toEqual(["Open"]);
   });
 
-  it("does not rewrite a module-scope label", () => {
+  it("does not rewrite a module-scope label in an unlisted file", () => {
     expect(run('const ACTIONS = [{ label: "Decline" }];', "a.ts")).toBeNull();
+  });
+
+  it("rewrites a module-scope label into a getter in a listed file", () => {
+    expect(runListed('const ACTIONS = [{ label: "Decline" }];')?.code).toBe(
+      `${IMPORT_T}const ACTIONS = [{ get label() { return __t("Decline"); } }];`,
+    );
   });
 
   it("does not rewrite other property names or non-literal values", () => {
     expect(
       run('function items() { return [{ id: "pin", value: "Pin thread" }]; }', "a.ts"),
     ).toBeNull();
-    expect(run('function items() { return { label: cond ? "A" : "B" }; }', "a.ts")).toBeNull();
+    expect(run("function items() { return { label: cond ? a : b }; }", "a.ts")).toBeNull();
   });
 
   it("does not rewrite labels passed to Command, Query and Action callees", () => {
@@ -447,10 +460,16 @@ describe("Runnable item titles are rewritten", () => {
   it("does not rewrite objects without run or data-call objects", () => {
     expect(run('function f() { return { title: "New thread" }; }', "a.ts")).toBeNull();
     expect(run('function f() { createThread({ title: "New thread" }); }', "a.ts")).toBeNull();
-    expect(run('function f() { return { title: cond ? "A" : "B", run: go }; }', "a.ts")).toBeNull();
+    expect(run("function f() { return { title: cond ? a : b, run: go }; }", "a.ts")).toBeNull();
   });
 
-  it("does not rewrite at module scope or for Command/Query/Action callees", () => {
+  it("rewrites a module-scope title into a getter in a listed file", () => {
+    expect(runListed('const ITEM = { title: "Change theme", run() {} };')?.code).toBe(
+      `${IMPORT_T}const ITEM = { get title() { return __t("Change theme"); }, run() {} };`,
+    );
+  });
+
+  it("does not rewrite at module scope in an unlisted file or for Command/Query/Action callees", () => {
     expect(run('const ITEM = { title: "Change theme", run() {} };', "a.ts")).toBeNull();
     expect(
       run('function f() { useAction({ title: "Internal name", run: go }); }', "a.ts"),
@@ -520,6 +539,297 @@ describe("String-literal containers keep their value verbatim", () => {
   it('keeps the {" "} continuation behaviour', () => {
     expect(keys('const a = <p>Save{" "}now</p>;')).toEqual(["Save now"]);
     expect(run('const a = <p>{" "}Save</p>;')?.code).toContain('{" "}{__t("Save")}');
+  });
+});
+
+describe("Conditional string branches in display positions", () => {
+  it.each([
+    [
+      "const a = <p>{open ? 'Hide details' : 'Show details'}</p>;",
+      ["Hide details", "Show details"],
+    ],
+    ["const a = <p>{error && 'Could not connect'}</p>;", ["Could not connect"]],
+    ["const a = <input placeholder={hint ?? 'Search threads'} />;", ["Search threads"]],
+    [
+      "const a = <b aria-label={a ? 'Pin' : (b ? 'Unpin' : 'Pinned')} />;",
+      ["Pin", "Unpin", "Pinned"],
+    ],
+    ["const a = <p>Status: {ok ? 'Ready' : 'Failed'}</p>;", ["Status: {0}", "Ready", "Failed"]],
+    ["const a = <b className={active ? 'font-bold' : 'font-normal'} />;", []],
+    ["const a = <b data-state={open ? 'Open' : 'Closed'} />;", []],
+    ["function f() { createThread({ title: draft ? 'Draft' : 'New thread' }); }", []],
+  ])("collects the branch keys of %s", (source, expected) => {
+    expect(keys(source)).toEqual(expected);
+    expect(run(source, "Sample.tsx") === null).toBe(expected.length === 0);
+  });
+
+  it("rewrites each branch and leaves the condition alone", () => {
+    expect(run('const a = <b title={busy ? "Saving…" : "Save"} />;')?.code).toBe(
+      `${IMPORT_T}const a = <b title={busy ? __t("Saving…") : __t("Save")} />;`,
+    );
+    expect(run('const a = <p>{mode === "Plan" ? "Planning" : "Building"}</p>;')?.code).toBe(
+      `${IMPORT_T}const a = <p>{mode === "Plan" ? __t("Planning") : __t("Building")}</p>;`,
+    );
+    expect(run('const a = <p>{error && "Could not connect"}</p>;')?.code).toContain(
+      'error && __t("Could not connect")',
+    );
+    expect(run("const a = <i placeholder={hint ?? `Find ${n}`} />;")?.code).toContain(
+      'hint ?? __ts("Find {0}", [n])',
+    );
+  });
+
+  it("translates branches inside the placeholder of a sentence", () => {
+    const out = run('const a = <p>Status: {ok ? "Ready" : "Failed"}</p>;')?.code ?? "";
+    expect(out).toContain('__tx("Status: {0}"');
+    expect(out).toContain('ok ? __t("Ready") : __t("Failed")');
+  });
+
+  it("covers toast, dialog, label and runnable positions and keeps the line count", () => {
+    const source = [
+      "function f() {",
+      '  toastManager.add({ title: ok ? "Done" : "Failed" });',
+      '  requestConfirmDialog(a ? "Delete" : "Keep");',
+      '  return { label: x || "Fallback", run, title: y ?? "Run it" };',
+      "}",
+    ].join("\n");
+    expect(keys(source, "a.ts")).toEqual([
+      "Done",
+      "Failed",
+      "Delete",
+      "Keep",
+      "Fallback",
+      "Run it",
+    ]);
+    const out = run(source, "a.ts")?.code ?? "";
+    expect(out.split("\n").length).toBe(source.split("\n").length);
+  });
+});
+
+describe("Module-scope file list", () => {
+  const source = 'const A = { label: "Low" };';
+  it.each([
+    ["apps/web/src/composerPlaceholder.ts", "D:/repo/apps/web/src/composerPlaceholder.ts", true],
+    ["apps/web/src/composerPlaceholder.ts", "apps/web/src/composerPlaceholder.ts", true],
+    [
+      "apps/web/src/composerPlaceholder.ts",
+      "D:\\repo\\apps\\web\\src\\composerPlaceholder.ts",
+      true,
+    ],
+    [
+      "apps/web/src/composerPlaceholder.ts",
+      "D:/repo/apps/web/src/oldcomposerPlaceholder.ts",
+      false,
+    ],
+  ])("matches entry %s against %s: %s", (entry, filename, applies) => {
+    const result = transformSource(source, filename, parseSync, { moduleScopeFiles: [entry] });
+    expect(result !== null).toBe(applies);
+  });
+
+  it("applies nowhere without a list", () => {
+    expect(transformSource(source, "apps/web/src/a.ts", parseSync)).toBeNull();
+    expect(transformSource(source, "apps/web/src/a.ts", parseSync, {})).toBeNull();
+  });
+
+  it("keeps module-scope strings of an unlisted file in English", () => {
+    const filename = "apps/web/src/components/settings/customModelEditor.logic.ts";
+    const code = 'export const LEVELS = [{ id: "low", label: "Low" }];';
+    expect(
+      transformSource(code, filename, parseSync, { moduleScopeFiles: ["other/file.ts"] }),
+    ).toBeNull();
+  });
+});
+
+describe("parseModuleScopeList", () => {
+  it("parses a valid list and defaults exclude to empty", () => {
+    expect(parseModuleScopeList('{"include":["a.ts"],"exclude":{"b.ts":"why"}}')).toEqual({
+      include: ["a.ts"],
+      exclude: { "b.ts": "why" },
+    });
+    expect(parseModuleScopeList('{"include":[]}')).toEqual({ include: [], exclude: {} });
+  });
+
+  it.each([
+    ["broken JSON", "{include:"],
+    ["non-object", "[]"],
+    ["include not an array", '{"include":"a.ts"}'],
+    ["include with non-string", '{"include":["a.ts",1]}'],
+    ["exclude value not a string", '{"include":[],"exclude":{"b.ts":1}}'],
+  ])("returns null for %s", (_name, text) => {
+    expect(parseModuleScopeList(text)).toBeNull();
+  });
+});
+
+describe("Module-scope display properties become getters", () => {
+  const rewrite = (source: string) => runListed(source)?.code ?? null;
+  const keysListed = (source: string) =>
+    collectMessages(source, "a.ts", parseSync, { moduleScopeFiles: ["a.ts"] }).map((m) => m.key);
+
+  it.each([
+    [
+      'const X = { decision: "accept", label: "Approve" };',
+      `${IMPORT_T}const X = { decision: "accept", get label() { return __t("Approve"); } };`,
+      ["Approve"],
+    ],
+    [
+      'const X = { title: "Theme", to: "/settings/appearance" };',
+      `${IMPORT_T}const X = { get title() { return __t("Theme"); }, to: "/settings/appearance" };`,
+      ["Theme"],
+    ],
+    [
+      'const X = { description: isMac ? "Uses ⌘" : "Uses Ctrl" };',
+      `${IMPORT_T}const X = { get description() { return isMac ? __t("Uses ⌘") : __t("Uses Ctrl"); } };`,
+      ["Uses ⌘", "Uses Ctrl"],
+    ],
+    [
+      'const X = { "label": "Approve" };',
+      `${IMPORT_T}const X = { get label() { return __t("Approve"); } };`,
+      ["Approve"],
+    ],
+    [
+      "const X = { hint: `Send ${key}` };",
+      `${IMPORT_T}const X = { get hint() { return __ts("Send {0}", [key]); } };`,
+      ["Send {0}"],
+    ],
+    [
+      'const X = { list: [{ placeholder: "Search" }] };',
+      `${IMPORT_T}const X = { list: [{ get placeholder() { return __t("Search"); } }] };`,
+      ["Search"],
+    ],
+  ])("rewrites %s", (source, expected, expectedKeys) => {
+    expect(rewrite(source)).toBe(expected);
+    expect(keysListed(source)).toEqual(expectedKeys);
+  });
+
+  it.each([
+    'const X = { "aria-label": "Close" };',
+    "const X = { label };",
+    'const X = { [key]: "Theme" };',
+    'const X = { name: "Dev server" };',
+    'const X = { label() { return "Theme"; } };',
+    'const X = { ...base, title: "123" };',
+    "const X = { title: someVariable };",
+    'const X = makeCommand({ label: "Internal" });',
+    'const X = useAction({ title: "Internal" });',
+  ])("leaves %s unchanged", (source) => {
+    expect(rewrite(source)).toBeNull();
+    expect(keysListed(source)).toEqual([]);
+  });
+
+  it("keeps function-scope rules unchanged by the list", () => {
+    expect(rewrite('function f() { return { label: "Pin" }; }')).toBe(
+      `${IMPORT_T}function f() { return { label: __t("Pin") }; }`,
+    );
+  });
+
+  it("preserves line count for a multi-line template literal", () => {
+    const source = "\n\nexport const HELP = {\n  hint: `Press Enter\nto send`,\n};";
+    const out = rewrite(source)!;
+    expect(out.split("\n")).toHaveLength(source.split("\n").length);
+    expect(out.split("\n")[5]).toBe("};");
+    expect(out.split("\n")[3]).toContain("get hint()");
+    expect(keysListed(source)).toEqual(["Press Enter\nto send"]);
+    expect(out).toContain("get hint() { return __t(");
+  });
+
+  it("reads the dictionary on every access", () => {
+    const body = rewrite('const SETTINGS = [{ id: "theme", title: "Theme", to: "/a" }];')!
+      .replace(/^import .*?;/, "")
+      .replace("const SETTINGS = ", "return ");
+    let locale = "en";
+    const dictionary: Record<string, Record<string, string>> = { zh: { Theme: "主題" } };
+    const __t = (key: string) => dictionary[locale]?.[key] ?? key;
+    const items = new Function("__t", body)(__t) as Array<{ title: string; to: string }>;
+    expect(items[0]!.title).toBe("Theme");
+    locale = "zh";
+    expect(items[0]!.title).toBe("主題");
+    expect(items[0]!.to).toBe("/a");
+  });
+});
+
+describe("Module-scope string constants are rebound on locale change", () => {
+  const IMPORT_TB = 'import { __t, __ts, __tx, __tb } from "@t3tools/client-runtime/i18n-overlay";';
+  const rewrite = (source: string) => runListed(source)?.code ?? null;
+  const keysListed = (source: string) =>
+    collectMessages(source, "a.ts", parseSync, { moduleScopeFiles: ["a.ts"] }).map((m) => m.key);
+
+  it.each([
+    [
+      'export const DEFAULT_COMPOSER_PLACEHOLDER = "Ask anything. @ files, $ skills, / commands";',
+      `${IMPORT_TB}export let DEFAULT_COMPOSER_PLACEHOLDER; __tb(() => { DEFAULT_COMPOSER_PLACEHOLDER = __t("Ask anything. @ files, $ skills, / commands"); });`,
+      ["Ask anything. @ files, $ skills, / commands"],
+    ],
+    [
+      'const NOTE = "Uses custom intervals.";',
+      `${IMPORT_TB}let NOTE; __tb(() => { NOTE = __t("Uses custom intervals."); });`,
+      ["Uses custom intervals."],
+    ],
+    [
+      'const HINT = isMac ? "Press ⌘K" : "Press Ctrl K";',
+      `${IMPORT_TB}let HINT; __tb(() => { HINT = isMac ? __t("Press ⌘K") : __t("Press Ctrl K"); });`,
+      ["Press ⌘K", "Press Ctrl K"],
+    ],
+    [
+      "const GREETING = `Hello ${name}`;",
+      `${IMPORT_TB}let GREETING; __tb(() => { GREETING = __ts("Hello {0}", [name]); });`,
+      ["Hello {0}"],
+    ],
+    [
+      'const TITLE: string = "Draft";',
+      `${IMPORT_TB}let TITLE: string; __tb(() => { TITLE = __t("Draft"); });`,
+      ["Draft"],
+    ],
+  ])("rewrites %s", (source, expected, expectedKeys) => {
+    expect(rewrite(source)).toBe(expected);
+    expect(keysListed(source)).toEqual(expectedKeys);
+  });
+
+  it.each([
+    'const A = "One", B = "Two";',
+    "const LIMIT = 50;",
+    'let TITLE = "Draft";',
+    'function f() { const label = "Save"; return label; }',
+    'if (flag) { const label = "Save"; }',
+    'const { a } = { a: "Save" };',
+    'const X = makeName("Save");',
+    'const X = "123";',
+  ])("leaves %s unchanged", (source) => {
+    expect(rewrite(source)).toBeNull();
+    expect(keysListed(source)).toEqual([]);
+  });
+
+  it("does not rewrite constants of an unlisted file or import __tb", () => {
+    const code = 'export const NOTE = "Uses custom intervals.";';
+    expect(run(code, "a.ts")).toBeNull();
+    expect(transformSource(code, "a.ts", parseSync, { moduleScopeFiles: ["other.ts"] })).toBeNull();
+    expect(run("const X = <b>Hi</b>;", "a.tsx")?.code).not.toContain("__tb");
+  });
+
+  it("preserves the line count of a multi-line initializer", () => {
+    const source = "\n\nexport const HELP =\n  `Press Enter\nto send`;\nconst Z = 1;";
+    const out = rewrite(source)!;
+    expect(out.split("\n")).toHaveLength(source.split("\n").length);
+    expect(out.split("\n").at(-1)).toBe("const Z = 1;");
+  });
+
+  it("reads the new value after the runtime rebinds", () => {
+    const body = rewrite('const NOTE = "Uses custom intervals.";')!
+      .replace(/^import .*?;/, "")
+      .concat(" return () => NOTE;");
+    let locale = "en";
+    const dictionary: Record<string, Record<string, string>> = {
+      zh: { "Uses custom intervals.": "使用自訂間隔。" },
+    };
+    const __t = (key: string) => dictionary[locale]?.[key] ?? key;
+    const assigns: Array<() => void> = [];
+    const __tb = (assign: () => void) => {
+      assigns.push(assign);
+      assign();
+    };
+    const read = new Function("__t", "__tb", body)(__t, __tb) as () => string;
+    expect(read()).toBe("Uses custom intervals.");
+    locale = "zh";
+    for (const assign of assigns) assign();
+    expect(read()).toBe("使用自訂間隔。");
   });
 });
 

@@ -117,7 +117,7 @@
 - `vp run check:changed` 全部通過。
 - `node scripts/i18n-overlay.ts missing --locale zh-TW` 與 `node scripts/i18n-overlay.ts module-candidates` 的結果都是零筆。
 - 用獨立的 `--home-dir` 啟動 dev server，在 web 上以 zh-TW 截圖：外觀、對話、語音、瀏覽器、版本控制各分頁的列標題，聊天輸入框的預設提示，以及一個含三元運算式的按鈕；切回 English 再截一次，確認還原。
-- 審核後會寫進資料的檔案（至少 `customModelEditor.logic.ts`）列在 `exclude`；在 zh-TW 下新增一個自訂模型預設欄位並存檔，確認設定裡存的是英文。
+- 審核後會寫進資料的檔案（至少 `customModelEditor.logic.ts`）列在 `exclude`，以程式碼確認，不在 UI 實際存檔：`apps/web/src/components/settings/customModelEditor.logic.ts` 列在 `packages/client-runtime/src/i18nOverlay/moduleScopeFiles.json` 的 `exclude`，且不在 `include`。未列入 `include` 的檔案不套用模組層規則，因此該檔的模組層 `label` 在新規則下沒有任何改寫；以 `transformSource` 對該檔的輸出與前一個 change 相同，或該檔的模組層字串不出現在 `collectMessages` 的結果，來確認中文不會寫進自訂模型設定。
 - mobile：`vp exec expo export --platform android` 成功，且 bundle 中被改寫的常數在 import 端是透過 `exports` 讀取（檢查 bundle 內容確認）；無法在裝置上驗證時明確標示「未在裝置上驗證」。
 
 **範圍**

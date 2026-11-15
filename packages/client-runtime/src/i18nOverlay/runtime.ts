@@ -12,8 +12,21 @@ let activeLocale = "en";
 
 const isEnglish = (locale: string) => locale === "en" || locale.startsWith("en-");
 
+const assigners: Array<() => void> = [];
+
 const syncActive = () => {
-  activeDictionary = isEnglish(activeLocale) ? null : (dictionaries.get(activeLocale) ?? null);
+  const next = isEnglish(activeLocale) ? null : (dictionaries.get(activeLocale) ?? null);
+  if (next === activeDictionary) return;
+  activeDictionary = next;
+  // One failing assigner must not leave later ones on the old locale or reject a dictionary load.
+  for (const assign of assigners) {
+    try {
+      assign();
+    } catch (error) {
+      // @effect-diagnostics-next-line globalConsole:off -- Runs in compiled UI modules, outside any Effect runtime.
+      console.error("[t3code] i18n overlay rebind failed", error);
+    }
+  }
 };
 
 export const setOverlayLocale = (locale: string): void => {
@@ -48,6 +61,11 @@ export const loadOverlayDictionary = (locale: string): Promise<void> => {
 };
 
 export const __t = (key: string): string => activeDictionary?.get(key) ?? key;
+
+export const __tb = (assign: () => void): void => {
+  assigners.push(assign);
+  assign();
+};
 
 const PLACEHOLDER = /\{(\d+)\}/g;
 

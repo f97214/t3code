@@ -69,6 +69,79 @@ describe("overlay runtime placeholders", () => {
   });
 });
 
+describe("Rebinding runtime", () => {
+  const freshOverlay = async () => {
+    vi.resetModules();
+    const overlay = await import("./runtime.ts");
+    overlay.setOverlayLocale("en");
+    return overlay;
+  };
+
+  it("rebinds constants when the locale switches", async () => {
+    const overlay = await freshOverlay();
+    overlay.registerOverlayDictionary("zh-TW", { "Save changes": "儲存變更" });
+    let label = "";
+    overlay.__tb(() => {
+      label = overlay.__t("Save changes");
+    });
+    expect(label).toBe("Save changes");
+    overlay.setOverlayLocale("zh-TW");
+    expect(label).toBe("儲存變更");
+    overlay.setOverlayLocale("en");
+    expect(label).toBe("Save changes");
+  });
+
+  it("runs callbacks only when the active dictionary changes, in registration order", async () => {
+    const overlay = await freshOverlay();
+    const calls: string[] = [];
+    overlay.__tb(() => calls.push("a"));
+    expect(calls).toEqual(["a"]);
+    overlay.__tb(() => calls.push("b"));
+    expect(calls).toEqual(["a", "b"]);
+    calls.length = 0;
+
+    overlay.registerOverlayDictionary("zh-TW", { x: "y" });
+    expect(calls).toEqual([]);
+
+    overlay.setOverlayLocale("zh-TW");
+    expect(calls).toEqual(["a", "b"]);
+    calls.length = 0;
+
+    overlay.setOverlayLocale("zh-TW");
+    expect(calls).toEqual([]);
+
+    overlay.registerOverlayDictionary("ja", { x: "z" });
+    expect(calls).toEqual([]);
+
+    overlay.registerOverlayDictionary("zh-TW", { x: "w" });
+    expect(calls).toEqual(["a", "b"]);
+    calls.length = 0;
+
+    overlay.setOverlayLocale("en");
+    expect(calls).toEqual(["a", "b"]);
+  });
+
+  it("keeps rebinding later assigners when one throws", async () => {
+    using report = vi.spyOn(console, "error").mockImplementation(() => {});
+    const overlay = await freshOverlay();
+    overlay.registerOverlayDictionary("zh-TW", { Save: "儲存" });
+    let armed = false;
+    let label = "";
+    overlay.__tb(() => {
+      if (armed) throw new Error("assign failed");
+    });
+    overlay.__tb(() => {
+      label = overlay.__t("Save");
+    });
+    armed = true;
+    expect(() => overlay.setOverlayLocale("zh-TW")).not.toThrow();
+    expect(label).toBe("儲存");
+    expect(() => overlay.registerOverlayDictionary("zh-TW", { Save: "存檔" })).not.toThrow();
+    expect(label).toBe("存檔");
+    expect(report).toHaveBeenCalled();
+  });
+});
+
 describe("overlay dictionary load failure", () => {
   it("stays English without throwing, then loads on retry", async () => {
     vi.resetModules();

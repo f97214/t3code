@@ -30,6 +30,7 @@ interface Analysis {
   readonly edits: Edit[];
   readonly messages: Message[];
   readonly usesTx: boolean;
+  readonly usesTb: boolean;
   readonly importAt: number;
 }
 
@@ -63,6 +64,16 @@ const DIALOG_PROPERTIES: ReadonlySet<string> = new Set([
 const INTERNAL_LABEL_CALLEE = /(Command|Query|Action|Result)$/;
 const RUNNABLE_PROPERTIES: ReadonlySet<string> = new Set(["title", "description"]);
 const LABEL_PROPERTIES: ReadonlySet<string> = new Set(["label"]);
+const MODULE_SCOPE_PROPERTIES: ReadonlySet<string> = new Set([
+  "label",
+  "title",
+  "description",
+  "placeholder",
+  "hint",
+  "detail",
+  "detailLabel",
+  "accessibilityLabel",
+]);
 const FUNCTION_TYPES: ReadonlySet<string> = new Set([
   "FunctionDeclaration",
   "FunctionExpression",
@@ -91,6 +102,17 @@ const nodeProp = (node: AstNode, key: string): AstNode | null => {
 const listProp = (node: AstNode, key: string): AstNode[] => {
   const value = node[key];
   return Array.isArray(value) ? value.filter(isNode) : [];
+};
+
+// Name of a non-computed identifier or string-literal key; null otherwise.
+const propertyKeyName = (property: AstNode): string | null => {
+  if (property.computed === true) return null;
+  const key = nodeProp(property, "key");
+  return key?.type === "Identifier"
+    ? String(key.name)
+    : key?.type === "Literal" && typeof key.value === "string"
+      ? key.value
+      : null;
 };
 
 // Only JSX whitespace (never U+00A0), and no trimming: callers strip run edges.
@@ -137,12 +159,25 @@ const isSpaceLiteral = (token: Token | undefined) =>
 
 const PARSE_FAILED = { parseFailed: true } as const;
 
+export interface TransformOptions {
+  readonly moduleScopeFiles?: readonly string[];
+}
+
+const isModuleScopeFile = (filename: string, options: TransformOptions | undefined) => {
+  const files = options?.moduleScopeFiles;
+  if (files === undefined || files.length === 0) return false;
+  const normalized = filename.replaceAll("\\", "/");
+  return files.some((entry) => normalized === entry || normalized.endsWith(`/${entry}`));
+};
+
 function analyze(
   code: string,
   filename: string,
   parseSync: ParseSync,
+  options?: TransformOptions,
 ): Analysis | typeof PARSE_FAILED | null {
   if (isTestFile(filename) || isInNodeModules(filename)) return null;
+  const moduleScope = isModuleScopeFile(filename, options);
   let parsed: ReturnType<ParseSync>;
   try {
     parsed = parseSync(filename, code);
@@ -154,6 +189,7 @@ function analyze(
   const edits: Edit[] = [];
   const messages: Message[] = [];
   let usesTx = false;
+  let usesTb = false;
   // A node claimed by one rule must not be claimed again by another.
   const rewritten = new Set<number>();
   // Object literals passed directly to *Command/*Query/*Action calls hold internal labels.
@@ -271,7 +307,11 @@ function analyze(
         if (expression === null || expression.type === "JSXEmptyExpression") cut();
         else if (expression.type === "Literal" && typeof expression.value === "string") {
           tokens.push({ kind: "str", start: child.start, end: child.end, value: expression.value });
-        } else tokens.push({ kind: "value", start: child.start, end: child.end });
+        } else {
+          // rewriteString is declared below handleChildren but runs only after both exist.
+          if (isBranching(expression)) rewriteString(expression, false, false);
+          tokens.push({ kind: "value", start: child.start, end: child.end });
+        }
       } else if (child.type === "JSXElement" || child.type === "JSXFragment") {
         tokens.push({ kind: "value", start: child.start, end: child.end });
       } else cut();
@@ -310,8 +350,8 @@ function analyze(
   };
 
   // Replaces `node` with __t / __ts; `wrap` adds JSX braces around the call.
-  const rewriteString = (node: AstNode | undefined, jsxAttribute: boolean, wrap: boolean) => {
-    if (node === undefined || rewritten.has(node.start)) return;
+  const rewriteLeaf = (node: AstNode, jsxAttribute: boolean, wrap: boolean) => {
+    if (rewritten.has(node.start)) return;
     const parsedString = stringMessage(node, jsxAttribute);
     if (parsedString === null) return;
     const { message, values } = parsedString;
@@ -330,6 +370,34 @@ function analyze(
         return wrap ? [`{${call})`, "}"] : [call, ")"];
       },
     });
+  };
+
+  const unwrapParens = (node: AstNode): AstNode => {
+    let current = node;
+    while (current.type === "ParenthesizedExpression") {
+      const inner = nodeProp(current, "expression");
+      if (inner === null) break;
+      current = inner;
+    }
+    return current;
+  };
+
+  const isBranching = (node: AstNode) => {
+    const type = unwrapParens(node).type;
+    return type === "ConditionalExpression" || type === "LogicalExpression";
+  };
+
+  // Descends conditional branches and logical right operands; tests and left operands stay.
+  const rewriteString = (node: AstNode | undefined, jsxAttribute: boolean, wrap: boolean) => {
+    if (node === undefined) return;
+    const target = unwrapParens(node);
+    if (target.type === "ConditionalExpression") {
+      for (const key of ["consequent", "alternate"]) {
+        rewriteString(nodeProp(target, key) ?? undefined, jsxAttribute, wrap);
+      }
+    } else if (target.type === "LogicalExpression") {
+      rewriteString(nodeProp(target, "right") ?? undefined, jsxAttribute, wrap);
+    } else rewriteLeaf(target, jsxAttribute, wrap);
   };
 
   const handleAttribute = (node: AstNode) => {
@@ -351,37 +419,73 @@ function analyze(
   };
 
   const hasRunProperty = (object: AstNode) =>
-    listProp(object, "properties").some((property) => {
-      if (property.type !== "Property" || property.computed === true) return false;
-      const key = nodeProp(property, "key");
-      return key?.type === "Identifier"
-        ? key.name === "run"
-        : key?.type === "Literal" && key.value === "run";
-    });
+    listProp(object, "properties").some(
+      (property) => property.type === "Property" && propertyKeyName(property) === "run",
+    );
 
-  const rewriteObjectProperties = (argument: AstNode | undefined, names: ReadonlySet<string>) => {
-    if (argument === undefined || argument.type !== "ObjectExpression") return;
-    for (const property of listProp(argument, "properties")) {
+  // Plain `key: value` properties only: no computed keys, shorthand, methods or accessors.
+  const plainProperties = function* (object: AstNode) {
+    for (const property of listProp(object, "properties")) {
       if (
         property.type !== "Property" ||
-        property.computed === true ||
-        property.shorthand === true
+        property.shorthand === true ||
+        property.method === true ||
+        property.kind !== "init"
       ) {
         continue;
       }
-      if (property.method === true || property.kind !== "init") continue;
-      const key = nodeProp(property, "key");
-      const keyName =
-        key?.type === "Identifier"
-          ? String(key.name)
-          : key?.type === "Literal" && typeof key.value === "string"
-            ? key.value
-            : null;
+      const name = propertyKeyName(property);
       const value = nodeProp(property, "value");
-      if (keyName !== null && names.has(keyName) && value !== null) {
-        rewriteString(value, false, false);
-      }
+      if (name !== null && value !== null) yield { property, name, value };
     }
+  };
+
+  const rewriteObjectProperties = (argument: AstNode | undefined, names: ReadonlySet<string>) => {
+    if (argument === undefined || argument.type !== "ObjectExpression") return;
+    for (const { name, value } of plainProperties(argument)) {
+      if (names.has(name)) rewriteString(value, false, false);
+    }
+  };
+
+  // A listed file's module-scope display property becomes a getter so each read looks up the dictionary.
+  const rewriteModuleScopeObject = (object: AstNode) => {
+    for (const { property, name, value } of plainProperties(object)) {
+      if (!MODULE_SCOPE_PROPERTIES.has(name)) continue;
+      const before = edits.length;
+      rewriteString(value, false, false);
+      if (edits.length === before) continue;
+      edits.push({
+        start: property.start,
+        end: property.end,
+        build: (render) => [`get ${name}() { return ${render(value.start, value.end)}; }`, ""],
+      });
+    }
+  };
+
+  // A listed file's module-scope string constant is rebound by the runtime when the dictionary changes.
+  const rewriteModuleScopeConstant = (declaration: AstNode) => {
+    if (declaration.kind !== "const") return;
+    const declarators = listProp(declaration, "declarations");
+    const declarator = declarators.length === 1 ? declarators[0]! : null;
+    const id = declarator === null ? null : nodeProp(declarator, "id");
+    const init = declarator === null ? null : nodeProp(declarator, "init");
+    if (id === null || id.type !== "Identifier" || init === null) return;
+    const before = edits.length;
+    rewriteString(init, false, false);
+    if (edits.length === before) return;
+    usesTb = true;
+    const binding = code.slice(id.start, id.end);
+    const name = String(id.name);
+    const initStart = init.start;
+    const initEnd = init.end;
+    edits.push({
+      start: declaration.start,
+      end: declaration.end,
+      build: (render) => [
+        `let ${binding}; __tb(() => { ${name} = ${render(initStart, initEnd)}; });`,
+        "",
+      ],
+    });
   };
 
   const handleCall = (node: AstNode) => {
@@ -448,26 +552,41 @@ function analyze(
     ) {
       rewriteObjectProperties(node, LABEL_PROPERTIES);
       if (hasRunProperty(node)) rewriteObjectProperties(node, RUNNABLE_PROPERTIES);
+    } else if (
+      node.type === "ObjectExpression" &&
+      moduleScope &&
+      !inFunction &&
+      !internalLabelObjects.has(node.start)
+    ) {
+      rewriteModuleScopeObject(node);
     }
     const nextInFunction = inFunction || FUNCTION_TYPES.has(node.type);
     for (const key of Object.keys(node)) {
       if (key !== "type") walk(node[key], nextInFunction);
     }
   };
+  if (moduleScope) {
+    for (const item of listProp(parsed.program, "body")) {
+      const declaration =
+        item.type === "ExportNamedDeclaration" ? nodeProp(item, "declaration") : item;
+      if (declaration?.type === "VariableDeclaration") rewriteModuleScopeConstant(declaration);
+    }
+  }
   walk(parsed.program, false);
 
   const statement = listProp(parsed.program, "body").find(
     (item) => typeof item.directive !== "string",
   );
-  return { edits, messages, usesTx, importAt: statement?.start ?? 0 };
+  return { edits, messages, usesTx, usesTb, importAt: statement?.start ?? 0 };
 }
 
 export function transformSource(
   code: string,
   filename: string,
   parseSync: ParseSync,
+  options?: TransformOptions,
 ): { code: string } | { parseFailed: true; code?: undefined } | null {
-  const analysis = analyze(code, filename, parseSync);
+  const analysis = analyze(code, filename, parseSync, options);
   if (analysis === null) return null;
   if ("parseFailed" in analysis) return analysis;
   if (analysis.edits.length === 0) return null;
@@ -492,7 +611,7 @@ export function transformSource(
     return out + code.slice(position, to);
   };
 
-  let imports = 'import { __t, __ts, __tx } from "@t3tools/client-runtime/i18n-overlay";';
+  let imports = `import { __t, __ts, __tx${analysis.usesTb ? ", __tb" : ""} } from "@t3tools/client-runtime/i18n-overlay";`;
   if (analysis.usesTx) imports += 'import { Fragment as __I18nFragment } from "react";';
   const at = analysis.importAt;
   return { code: code.slice(0, at) + imports + render(at, code.length) };
@@ -502,8 +621,9 @@ export function collectMessages(
   code: string,
   filename: string,
   parseSync: ParseSync,
+  options?: TransformOptions,
 ): Array<{ key: string; line: number }> {
-  const analysis = analyze(code, filename, parseSync);
+  const analysis = analyze(code, filename, parseSync, options);
   if (analysis === null || "parseFailed" in analysis) return [];
   return [...analysis.messages]
     .sort((a, b) => a.start - b.start)
@@ -511,6 +631,33 @@ export function collectMessages(
       key: message.key,
       line: countNewlines(code.slice(0, message.start)) + 1,
     }));
+}
+
+export interface ModuleScopeList {
+  readonly include: string[];
+  readonly exclude: Record<string, string>;
+}
+
+// Parses moduleScopeFiles.json; null when the text is not a well-formed list.
+export function parseModuleScopeList(text: string): ModuleScopeList | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+  const { include, exclude = {} } = parsed as { include?: unknown; exclude?: unknown };
+  if (!Array.isArray(include) || !include.every((entry) => typeof entry === "string")) return null;
+  if (
+    typeof exclude !== "object" ||
+    exclude === null ||
+    Array.isArray(exclude) ||
+    !Object.values(exclude).every((reason) => typeof reason === "string")
+  ) {
+    return null;
+  }
+  return { include: include as string[], exclude: exclude as Record<string, string> };
 }
 
 // Shared by the web plugin and the mobile transformer so both pick the same files.
