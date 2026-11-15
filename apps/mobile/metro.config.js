@@ -19,6 +19,12 @@ const escapedWorkspaceRoot = workspaceRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"
 const generatedDeviceStreamRoot = path.join(__dirname, ".generated", "device-stream");
 const generatedPreviewStreamRoot = path.join(__dirname, ".generated", "preview-stream");
 
+process.env.T3CODE_I18N_OVERLAY_UPSTREAM_TRANSFORMER = config.transformer.babelTransformerPath;
+config.transformer = {
+  ...config.transformer,
+  babelTransformerPath: path.join(__dirname, "i18nOverlayTransformer.js"),
+};
+
 config.watchFolders = [...new Set([...(config.watchFolders ?? []), workspaceRoot])];
 config.resolver = {
   ...config.resolver,

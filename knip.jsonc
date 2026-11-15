@@ -30,6 +30,8 @@
         "fixtures/*/*.js",
         // Fork-only guard, run directly with node.
         "fork-guard.mjs",
+        // Fork-only i18n overlay dictionary maintenance, run directly with node.
+        "i18n-overlay.ts",
         "knip-schemas.ts",
         "linux-after-pack.ts",
         "mobile-behavior/run.ts",

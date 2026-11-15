@@ -27,6 +27,15 @@
       "types": "./src/composerModelMentions.ts",
       "default": "./src/composerModelMentions.ts"
     },
+    "./i18n-overlay": {
+      "types": "./src/i18nOverlay/runtime.ts",
+      "default": "./src/i18nOverlay/runtime.ts"
+    },
+    "./i18n-overlay/transform": {
+      "types": "./src/i18nOverlay/transform.ts",
+      "default": "./src/i18nOverlay/transform.ts"
+    },
+    "./i18n-overlay/dictionaries/zh-TW.json": "./src/i18nOverlay/dictionaries/zh-TW.json",
     "./locales": {
       "types": "./src/locales.ts",
       "default": "./src/locales.ts"

@@ -42,7 +42,7 @@ initializeGT({
 
 // Read the device languages from gt-react-native's own native module: GT's getLocale() prefers
 // the last locale passed to GTProvider, which it persists, so it can't express "system".
-function readSystemLocales(): ReadonlyArray<string> {
+export function readSystemLocales(): ReadonlyArray<string> {
   try {
     const locales =
       TurboModuleRegistry.get<{ getNativeLocales(): string[] } & TurboModule>(

@@ -20,6 +20,7 @@ import {
 
 import { loadRepoEnv } from "../../scripts/lib/public-config";
 import { thirdPartyLicensesPlugin } from "../../scripts/lib/third-party-licenses";
+import { i18nOverlayPlugin } from "./vite/i18nOverlay";
 import { tailwindPlugins } from "./vite/tailwind";
 import { warmBundledDevPlugin } from "./vite/warmBundledDev";
 import { formatAppDisplayName, resolveWebAppStageLabel } from "./src/branding.logic";
@@ -323,6 +324,7 @@ export default defineConfig(() => {
             ],
           }),
       tanstackRouter({ autoCodeSplitting: true }),
+      process.env.VITEST ? undefined : i18nOverlayPlugin(new URL("./src", import.meta.url)),
       react({ compiler: true }),
       tailwindPlugins(bundledDev),
       warmBundledDevPlugin(),

@@ -1,3 +1,8 @@
+import {
+  hasOverlayDictionary,
+  loadOverlayDictionary,
+  setOverlayLocale,
+} from "@t3tools/client-runtime/i18n-overlay";
 import { resolveLocale } from "@t3tools/client-runtime/locales";
 import { getTranslationsSnapshot } from "gt-react";
 
@@ -14,12 +19,17 @@ type LocaleTranslations = Awaited<ReturnType<typeof getTranslationsSnapshot>>;
 export interface I18nSnapshot {
   readonly locale: string;
   readonly translations: LocaleTranslations;
+  readonly overlayReady: boolean;
 }
 
 const loadedTranslations: LocaleTranslations = { [DEFAULT_LOCALE]: {} };
 const pendingLoads = new Map<string, Promise<void>>();
 const listeners = new Set<() => void>();
-let snapshot: I18nSnapshot = { locale: DEFAULT_LOCALE, translations: { ...loadedTranslations } };
+let snapshot: I18nSnapshot = {
+  locale: DEFAULT_LOCALE,
+  translations: { ...loadedTranslations },
+  overlayReady: false,
+};
 let requestedLocale = DEFAULT_LOCALE;
 
 function loadLocale(locale: string): Promise<void> {
@@ -42,10 +52,16 @@ function loadLocale(locale: string): Promise<void> {
 
 function activateLocale(locale: string): void {
   if (requestedLocale !== locale) return;
-  if (snapshot.locale === locale && snapshot.translations[locale] === loadedTranslations[locale]) {
+  setOverlayLocale(locale);
+  const overlayReady = hasOverlayDictionary(locale);
+  if (
+    snapshot.locale === locale &&
+    snapshot.translations[locale] === loadedTranslations[locale] &&
+    snapshot.overlayReady === overlayReady
+  ) {
     return;
   }
-  snapshot = { locale, translations: { ...loadedTranslations } };
+  snapshot = { locale, translations: { ...loadedTranslations }, overlayReady };
   document.documentElement.lang = locale;
   for (const listener of listeners) listener();
 }
@@ -75,7 +91,9 @@ export function startI18n(): void {
 /** Resolves once the requested locale's translations are ready; immediate for English. */
 export function whenLocaleReady(): Promise<void> {
   const locale = requestedLocale;
-  return loadLocale(locale).then(() => activateLocale(locale));
+  return Promise.all([loadLocale(locale), loadOverlayDictionary(locale)]).then(() =>
+    activateLocale(locale),
+  );
 }
 
 export function subscribeI18n(listener: () => void): () => void {

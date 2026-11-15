@@ -101,6 +101,8 @@ import {
 import { pruneNewTaskFlowStates } from "./features/threads/new-task-flow-state";
 import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 import { installAppUpdateChecks } from "./features/updates/app-updates";
+import { OverlayLocaleRoot } from "./i18n/OverlayLocaleRoot";
+import { takeOverlayNavigationState } from "./i18n/overlayNavigationState";
 
 import "../global.css";
 
@@ -253,7 +255,9 @@ export default function App() {
     <RegistryContext.Provider value={appAtomRegistry}>
       <CloudAuthProvider>
         <AppearancePreferencesProvider>
-          <AppContent />
+          <OverlayLocaleRoot>
+            <AppContent />
+          </OverlayLocaleRoot>
         </AppearancePreferencesProvider>
       </CloudAuthProvider>
     </RegistryContext.Provider>
@@ -263,6 +267,7 @@ export default function App() {
 function AppContent() {
   const { themeAppearance } = useAppearancePreferences();
   const navigationTheme = useMobileNavigationTheme();
+  const [initialNavigationState] = useState(takeOverlayNavigationState);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- matches the Android navigation bar to the app theme, as StatusBar does for the status bar
   useEffect(() => {
@@ -286,6 +291,7 @@ function AppContent() {
                 <Navigation
                   ref={attachRootNavigation}
                   linking={appLinking}
+                  initialState={initialNavigationState}
                   onReady={handleNavigationReady}
                   theme={navigationTheme}
                   onStateChange={handleNavigationStateChange}
