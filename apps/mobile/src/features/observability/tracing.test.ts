@@ -18,7 +18,9 @@ vi.mock("expo-constants", () => ({
 }));
 
 it.effect("does not let OTLP serialization failures alter application effects", () => {
-  const fetchFn = vi.fn<typeof fetch>(async () => new Response(null, { status: 202 }));
+  const fetchFn = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+    async () => new Response(null, { status: 202 }),
+  );
   const layerTracing = Tracing.layerFromConfig(
     {
       tracesUrl: "https://api.axiom.test/v1/traces",

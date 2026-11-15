@@ -12,9 +12,8 @@ process.env.EXPO_NO_TYPESCRIPT_SETUP = "1";
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
 const isIosPersonalTeamBuild = repoEnv.T3CODE_IOS_PERSONAL_TEAM === "1";
-const runtimeVersionPolicy =
-  process.env.MOBILE_VERSION_POLICY ??
-  (APP_VARIANT === "development" ? "appVersion" : "fingerprint");
+const runtimeVersionPolicy = (process.env.MOBILE_VERSION_POLICY ??
+  (APP_VARIANT === "development" ? "appVersion" : "fingerprint")) as "appVersion" | "fingerprint";
 
 const personalTeamBundleIdentifier = repoEnv.T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID?.trim();
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
