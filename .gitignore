@@ -65,3 +65,5 @@ docs/spectra/.vector-search.db*
 # <<< Managed by init-project-docs <<<
 # Personal Claude settings (fork guard) stay local.
 /.claude/settings.local.json
+# Claude Code worktrees are separate checkouts, not repo content.
+/.claude/worktrees/
