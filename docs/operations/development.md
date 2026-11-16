@@ -268,6 +268,10 @@ vp run dist:desktop:win
 vp run dist:desktop:artifact --platform linux --target AppImage --arch arm64
 ```
 
+`vp run dist:desktop:win:portable` builds this fork's portable Windows zip (x64): a `zip` target
+on Windows flags the packaged app as portable and leaves out the update feed. See
+[ADR-0002](../adr/0002-portable-build-flag.md).
+
 DMGs default to the host architecture. Use `--arch` to choose another target and `--keep-stage`
 to retain packaging files for inspection. Run `vp run dist:desktop:artifact --help` for other
 options.

@@ -3,6 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
@@ -70,6 +71,35 @@ describe("DesktopEnvironment", () => {
 
       assert.equal(development.stateDir, "/Users/alice/.t3/dev");
       assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
+    }),
+  );
+
+  it.effect("keeps portable state beside the executable, ignoring T3CODE_HOME", () =>
+    Effect.gen(function* () {
+      const portableInput = {
+        platform: "win32",
+        isPackaged: true,
+        appPath: "/portable/resources/app.asar",
+        resourcesPath: "/portable/resources",
+        portableRoot: Option.some("/portable"),
+      } as const;
+      const portable = yield* makeEnvironment(portableInput, {
+        T3CODE_HOME: "/Users/alice/.t3",
+        APPDATA: "/Users/alice/AppData/Roaming",
+      });
+      const overridden = yield* makeEnvironment(portableInput, {
+        T3CODE_DESKTOP_APP_USER_MODEL_ID: "custom.id",
+      });
+      const installed = yield* makeEnvironment({ platform: "win32", isPackaged: true });
+
+      assert.isTrue(portable.isPortable);
+      assert.equal(portable.baseDir, "/portable/data");
+      assert.equal(portable.stateDir, "/portable/data/userdata");
+      assert.equal(portable.appDataDirectory, "/portable/data/electron");
+      assert.equal(portable.appUserModelId, "com.t3tools.t3code.portable");
+      assert.equal(overridden.appUserModelId, "custom.id");
+      assert.isFalse(installed.isPortable);
+      assert.equal(installed.appUserModelId, "com.t3tools.t3code");
     }),
   );
 });

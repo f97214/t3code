@@ -340,6 +340,7 @@ function getAutoUpdateDisabledReason(args: {
   policy: DesktopUpdatePolicy.UpdatePolicy;
   isDevelopment: boolean;
   isPackaged: boolean;
+  isPortable: boolean;
   platform: NodeJS.Platform;
   appImage?: string | undefined;
   isDebPackage: boolean;
@@ -348,6 +349,10 @@ function getAutoUpdateDisabledReason(args: {
 }): string | null {
   if (args.policy.mode === "off") {
     return args.policy.message ?? "Updates are turned off on this machine.";
+  }
+  // A machine-wide policy feed or the mock flag would otherwise run the NSIS installer.
+  if (args.isPortable) {
+    return "Portable builds do not update themselves. Extract the new version and move the data folder over.";
   }
   if (!args.hasUpdateFeedConfig) {
     return "Automatic updates are not available because no update feed is configured.";
@@ -474,6 +479,7 @@ export const make = Effect.gen(function* () {
         policy,
         isDevelopment: environment.isDevelopment,
         isPackaged: environment.isPackaged,
+        isPortable: environment.isPortable,
         platform: environment.platform,
         appImage: Option.getOrUndefined(config.appImagePath),
         isDebPackage,

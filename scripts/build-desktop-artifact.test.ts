@@ -503,8 +503,29 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     }),
   );
 
-  it.effect("omits update feeds for pull request preview builds", () =>
+  it.effect("omits update feeds for pull request preview and Windows portable builds", () =>
     Effect.gen(function* () {
+      const portable = yield* createBuildConfig(
+        "win",
+        "zip",
+        "0.0.33",
+        false,
+        true,
+        undefined,
+        undefined,
+      );
+      const installer = yield* createBuildConfig(
+        "win",
+        "nsis",
+        "0.0.33",
+        false,
+        false,
+        undefined,
+        undefined,
+      );
+      assert.isNull(portable.publish);
+      assert.isNotNull(installer.publish);
+
       const preview = yield* createBuildConfig(
         "mac",
         "dmg",

@@ -540,6 +540,8 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
         ELECTRON_RUN_AS_NODE: "1",
         T3CODE_DESKTOP_SHELL_DISCOVERY_PENDING: "1",
         T3CODE_CLI_PATH: Option.getOrUndefined(input.cliPath),
+        // The server prefers env over the bootstrap home; an inherited one would reach installed data.
+        ...(environment.isPortable ? { T3CODE_HOME: undefined } : {}),
       },
       extendEnv: true,
       bootstrap,

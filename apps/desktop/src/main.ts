@@ -9,12 +9,13 @@ import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-// @effect-diagnostics-next-line nodeBuiltinImport:off - Version output must flush before Electron exits, without acquiring the runtime.
+// @effect-diagnostics-next-line nodeBuiltinImport:off - Version output and the portable flag read must be synchronous, before the runtime.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 
 import * as Electron from "electron";
 
@@ -49,6 +50,7 @@ import * as DesktopBackendPool from "./backend/DesktopBackendPool.ts";
 import * as DesktopLocalEnvironmentAuth from "./backend/DesktopLocalEnvironmentAuth.ts";
 import * as DesktopNetworkInterfaces from "./backend/DesktopNetworkInterfaces.ts";
 import * as DesktopEnvironment from "./app/DesktopEnvironment.ts";
+import * as DesktopPortable from "./app/DesktopPortable.ts";
 import * as DesktopManagedPolicy from "./app/DesktopManagedPolicy.ts";
 import * as DesktopLifecycle from "./app/DesktopLifecycle.ts";
 import * as DesktopLinuxUrlHandler from "./app/DesktopLinuxUrlHandler.ts";
@@ -97,11 +99,29 @@ const layerDesktopEnvironment = Layer.unwrap(
     );
     const platform = yield* HostProcess.Platform;
     const processArch = yield* HostProcess.Architecture;
+    const execPath = yield* HostProcess.ExecutablePath;
+    const path = yield* Path.Path;
+    const portableRoot = DesktopPortable.resolvePortableRoot({
+      isPackaged: metadata.isPackaged,
+      platform,
+      appPath: metadata.appPath,
+      execPath,
+      joinPath: path.join,
+      dirname: path.dirname,
+      readFile: (filePath) => {
+        try {
+          return NodeFS.readFileSync(filePath, "utf8");
+        } catch {
+          return undefined;
+        }
+      },
+    });
     return DesktopEnvironment.layer({
       dirname: __dirname,
       homeDirectory: NodeOS.homedir(),
       platform,
       processArch,
+      portableRoot,
       ...metadata,
     });
   }),

@@ -15,12 +15,19 @@ import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 
 const environmentFor = (
   path: Path.Path,
-  input: { home: string; baseDir: string; platform?: NodeJS.Platform; isPackaged?: boolean },
+  input: {
+    home: string;
+    baseDir: string;
+    platform?: NodeJS.Platform;
+    isPackaged?: boolean;
+    isPortable?: boolean;
+  },
 ) =>
   DesktopEnvironment.DesktopEnvironment.of({
     path,
     platform: input.platform ?? "linux",
     isPackaged: input.isPackaged ?? true,
+    isPortable: input.isPortable ?? false,
     homeDirectory: input.home,
     baseDir: input.baseDir,
     stateDir: path.join(input.baseDir, "userdata"),
@@ -35,6 +42,7 @@ const commandIn = (
     baseDir?: string;
     platform?: NodeJS.Platform;
     isPackaged?: boolean;
+    isPortable?: boolean;
     env?: NodeJS.ProcessEnv;
   },
   spawner?: ChildProcessSpawner.ChildProcessSpawner["Service"],
@@ -146,6 +154,15 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* later.uninstall;
       yield* later.installOnFirstLaunch;
       expect(yield* fs.exists(path.join(laterHome, ".local", "bin", "t3"))).toBe(false);
+
+      // A portable build leaves the host's PATH alone; Install in Settings still works.
+      const portableHome = yield* fs.makeTempDirectoryScoped();
+      const portable = yield* commandIn({ home: portableHome, env, isPortable: true });
+      yield* portable.installOnFirstLaunch;
+      expect((yield* portable.state).installedPath).toBeNull();
+      expect((yield* portable.install).installedPath).toBe(
+        path.join(portableHome, ".local", "bin", "t3"),
+      );
 
       // An app that ran before left its settings or launcher. Its user may have removed t3 or
       // chosen another, so first launch leaves it to Settings, where Install still works.

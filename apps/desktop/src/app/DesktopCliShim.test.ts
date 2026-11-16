@@ -207,5 +207,16 @@ describe("renderCliShim", () => {
     );
     expect(bare).toEqual([]);
     expect(lines).toContain('set "T3CODE_CLI_PATH=C:\\Users\\José\\.t3\\bin\\t3.cmd"');
+    expect(lines).toContain('if not defined T3CODE_HOME set "T3CODE_HOME=C:\\Users\\José\\.t3"');
+
+    // A portable launcher must not follow an ambient T3CODE_HOME to the installed app's data.
+    const portable = renderCliShim({
+      target: { kind: "windows", executable, entry: "C:\\Apps\\server.asar\\bin.mjs" },
+      shimPath: "D:\\T3\\data\\bin\\t3.cmd",
+      t3Home: "D:\\T3\\data",
+      ignoreAmbientHome: true,
+    }).split("\r\n");
+    expect(portable).toContain('set "T3CODE_HOME=D:\\T3\\data"');
+    expect(portable.some((line) => line.startsWith("if not defined T3CODE_HOME"))).toBe(false);
   });
 });

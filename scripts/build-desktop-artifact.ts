@@ -967,6 +967,7 @@ interface StagePackageJson {
   readonly buildVersion: string;
   readonly t3codeCommitHash: string;
   readonly t3codeWebAuthn?: MacWebAuthnEntitlements;
+  readonly t3codePortable?: true;
   readonly private: true;
   readonly packageManager: string;
   readonly description: string;
@@ -2763,6 +2764,10 @@ export function resolveDesktopProductName(version: string): string {
     : (desktopPackageJson.productName ?? "T3 Code");
 }
 
+// A Windows zip is the fork's portable build: apps/desktop/src/app/DesktopPortable.ts reads the flag.
+const isWindowsPortableTarget = (platform: typeof BuildPlatform.Type, target: string): boolean =>
+  platform === "win" && target === "zip";
+
 export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   platform: typeof BuildPlatform.Type,
   target: string,
@@ -2811,7 +2816,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const updateChannel = resolveDesktopUpdateChannel(version);
   // Missing publish config infers a GitHub feed from tokens; staging has no repository, so manifest generation would crash.
   buildConfig.publish = null;
-  if (!isDesktopPreviewVersion(version)) {
+  if (!isDesktopPreviewVersion(version) && !isWindowsPortableTarget(platform, target)) {
     const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
     if (publishConfig) {
       buildConfig.publish = [publishConfig];
@@ -3904,6 +3909,9 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     t3codeCommitHash: commitHash,
     // Read by apps/desktop/src/preview/Passkeys.ts; must match the signed entitlements.
     ...(macWebAuthn ? { t3codeWebAuthn: macWebAuthn } : {}),
+    ...(isWindowsPortableTarget(options.platform, options.target)
+      ? { t3codePortable: true as const }
+      : {}),
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
@@ -4095,6 +4103,10 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         platform: options.platform,
         runtimeArchivePath: options.wslRuntime,
       }),
+      // The cap keeps NSIS installs and updates fast; a portable zip is never installed.
+      ...(isWindowsPortableTarget(options.platform, options.target)
+        ? { fileLimit: Number.POSITIVE_INFINITY }
+        : {}),
       verbose: options.verbose,
     });
   }

@@ -83,6 +83,30 @@ or use a package manager:
 | Arch Linux nightly | `yay -S t3code-nightly-bin`                                  |
 | Nix                | `nix profile add github:NixOS/nixpkgs/nixos-unstable#t3code` |
 
+### Windows portable (this fork)
+
+The portable zip runs without an installer. Extract it to a folder you will keep it in (moving it
+later breaks worktrees, see below) and start `T3 Code (Beta).exe`. Everything T3 Code stores, including threads, settings, and the browser
+profile, goes into the `data` folder beside it. It runs alongside an installed T3 Code without
+sharing data, and it does not add `t3` to your `PATH` on first launch.
+
+- **Updating:** it never updates itself. Quit it, extract the new zip to a new folder, and move the
+  old `data` folder next to the new `T3 Code (Beta).exe`. Then delete the old folder. Extracting
+  over the old files leaves stale ones behind.
+- **Secrets:** provider keys you save are stored unencrypted under `data\userdata\secrets`. Treat
+  the folder as sensitive when you copy it.
+- **Moving the folder:** Git worktrees that T3 Code created before the move stop working, because
+  each repository records their absolute path; run `git worktree repair` in the repository to fix
+  them. If you installed the `t3` command from **Settings → About**, choose **Uninstall** there
+  before moving and **Install** again afterwards.
+- **`t3` in a terminal:** in any terminal, including the one inside T3 Code, a plain `t3` runs
+  whichever `t3` is on your `PATH`, which may be an installed T3 Code. Run
+  `<portable folder>\data\bin\t3.cmd` to use the portable one.
+- **What stays on the machine:** provider CLIs and their sign-ins, and the `~/.t3` folder inside a
+  WSL distro when WSL is enabled. An installed T3 Code on the same machine uses these too.
+- The zip is unsigned, so SmartScreen or Smart App Control may block it. Extracting to a deeply
+  nested folder can exceed the Windows path length limit.
+
 ### Linux
 
 AppImage and `.deb` downloads are available for x86_64 and ARM64. Check your

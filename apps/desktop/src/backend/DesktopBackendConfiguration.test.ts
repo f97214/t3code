@@ -67,6 +67,7 @@ function layerEnvironment(
     readonly otlpTracesUrl?: string;
     readonly otlpMetricsUrl?: string;
     readonly otlpLogsUrl?: string;
+    readonly portableRoot?: Option.Option<string>;
   },
 ) {
   return DesktopEnvironment.layer({
@@ -79,6 +80,7 @@ function layerEnvironment(
     isPackaged: options?.isPackaged ?? true,
     resourcesPath: options?.resourcesPath ?? "/missing/resources",
     runningUnderArm64Translation: false,
+    portableRoot: options?.portableRoot ?? Option.none(),
   }).pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -282,40 +284,49 @@ describe("DesktopBackendConfiguration", () => {
       });
       const resourcesPath = path.join(baseDir, "resources");
 
-      const config = yield* Effect.gen(function* () {
-        const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
-        return yield* configuration.resolvePrimary;
-      }).pipe(
-        Effect.provide(
-          layerBackendConfiguration().pipe(
-            Layer.provideMerge(layerServerExposure),
-            Layer.provideMerge(DesktopAppSettings.layerTest()),
-            Layer.provideMerge(DesktopWslEnvironment.layerTest()),
-            Layer.provideMerge(
-              Layer.succeed(
-                DesktopWslServerTree.DesktopWslServerTree,
-                DesktopWslServerTree.DesktopWslServerTree.of({
-                  ensure: Effect.die("Windows primary must not extract the WSL server tree"),
-                  cleanupLegacy: Effect.die("Windows primary must not clean the WSL server tree"),
+      const resolveWindowsPrimary = (portableRoot: Option.Option<string>) =>
+        Effect.gen(function* () {
+          const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
+          return yield* configuration.resolvePrimary;
+        }).pipe(
+          Effect.provide(
+            layerBackendConfiguration().pipe(
+              Layer.provideMerge(layerServerExposure),
+              Layer.provideMerge(DesktopAppSettings.layerTest()),
+              Layer.provideMerge(DesktopWslEnvironment.layerTest()),
+              Layer.provideMerge(
+                Layer.succeed(
+                  DesktopWslServerTree.DesktopWslServerTree,
+                  DesktopWslServerTree.DesktopWslServerTree.of({
+                    ensure: Effect.die("Windows primary must not extract the WSL server tree"),
+                    cleanupLegacy: Effect.die("Windows primary must not clean the WSL server tree"),
+                  }),
+                ),
+              ),
+              Layer.provideMerge(
+                layerEnvironment(baseDir, {
+                  appPath: `${resourcesPath}/app.asar`,
+                  platform: "win32",
+                  resourcesPath,
+                  portableRoot,
                 }),
               ),
             ),
-            Layer.provideMerge(
-              layerEnvironment(baseDir, {
-                appPath: `${resourcesPath}/app.asar`,
-                platform: "win32",
-                resourcesPath,
-              }),
-            ),
           ),
-        ),
-      );
+        );
+      const config = yield* resolveWindowsPrimary(Option.none());
+      const portable = yield* resolveWindowsPrimary(Option.some(baseDir));
 
       assert.equal(
         config.entryPath,
         path.join(resourcesPath, "server.asar/apps/server/dist/bin.mjs"),
       );
       assert.equal(config.env.ELECTRON_RUN_AS_NODE, "1");
+      assert.notProperty(config.env, "T3CODE_HOME");
+      // The spawner deletes undefined keys, so an inherited T3CODE_HOME cannot outrank the bootstrap home.
+      assert.property(portable.env, "T3CODE_HOME");
+      assert.isUndefined(portable.env.T3CODE_HOME);
+      assert.equal(portable.bootstrap.t3Home, path.join(baseDir, "data"));
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
